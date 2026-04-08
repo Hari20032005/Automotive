@@ -1,0 +1,964 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FuelGuard Control Board</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+:root {
+  --bg: #080c0d;
+  --panel: #111719;
+  --panel-2: #162023;
+  --rail: #263236;
+  --line: #314147;
+  --text: #e8f5ed;
+  --muted: #8ea79a;
+  --green: #33e38a;
+  --amber: #ffb347;
+  --red: #ff5b5b;
+  --blue: #55a8ff;
+  --mono: "SFMono-Regular", Menlo, Consolas, monospace;
+  --sans: "Segoe UI", Tahoma, sans-serif;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  min-height: 100vh;
+  background:
+    radial-gradient(circle at top left, rgba(51,227,138,0.12), transparent 25%),
+    radial-gradient(circle at 80% 10%, rgba(85,168,255,0.10), transparent 20%),
+    linear-gradient(180deg, #050809, #0b1113 70%);
+  color: var(--text);
+  font-family: var(--sans);
+  padding: 18px;
+}
+
+.board {
+  max-width: 1440px;
+  margin: 0 auto;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  overflow: hidden;
+  background: linear-gradient(180deg, #0c1214, #090d0f);
+  box-shadow: 0 18px 40px rgba(0,0,0,0.5);
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 18px;
+  padding: 16px 18px;
+  background: linear-gradient(180deg, #111a1d, #0b1113);
+  border-bottom: 1px solid var(--line);
+}
+
+.brand {
+  display: grid;
+  gap: 4px;
+}
+
+.brand h1 {
+  font-size: 20px;
+  letter-spacing: 0.6px;
+}
+
+.brand p {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.status-strip {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-family: var(--mono);
+  font-size: 12px;
+  letter-spacing: 0.3px;
+}
+
+.led {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #445;
+  box-shadow: 0 0 6px rgba(0,0,0,0.4);
+}
+
+.led.ok { background: var(--green); box-shadow: 0 0 10px rgba(51,227,138,0.8); }
+.led.warn { background: var(--amber); box-shadow: 0 0 10px rgba(255,179,71,0.8); }
+.led.alert { background: var(--red); box-shadow: 0 0 12px rgba(255,91,91,0.9); }
+
+.kpi-row {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0,1fr));
+  gap: 12px;
+  padding: 14px 18px 0;
+}
+
+.kpi {
+  background: linear-gradient(180deg, #121a1d, #0e1417);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 12px;
+}
+
+.kpi .label {
+  font-size: 11px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.9px;
+}
+
+.kpi .value {
+  margin-top: 5px;
+  font-family: var(--mono);
+  font-size: 25px;
+}
+
+.kpi .sub {
+  margin-top: 4px;
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.layout {
+  display: grid;
+  grid-template-columns: 420px 1fr;
+  gap: 14px;
+  padding: 14px 18px 18px;
+}
+
+.panel {
+  background: linear-gradient(180deg, var(--panel), #0d1214);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  overflow: hidden;
+}
+
+.panel-h {
+  padding: 10px 12px;
+  font-family: var(--mono);
+  font-size: 12px;
+  letter-spacing: 0.7px;
+  color: var(--muted);
+  border-bottom: 1px solid var(--line);
+  background: rgba(255,255,255,0.02);
+}
+
+.control-grid {
+  display: grid;
+  gap: 12px;
+  padding: 12px;
+}
+
+.module {
+  border: 1px solid var(--line);
+  background: linear-gradient(180deg, #131b1f, #0f1517);
+  border-radius: 12px;
+  padding: 12px;
+}
+
+.module-title {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.switch-row, .btn-row, .seg-row, .mode-grid {
+  display: grid;
+  gap: 10px;
+}
+
+.switch-row.two {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.mode-grid {
+  grid-template-columns: repeat(2, minmax(0,1fr));
+}
+
+.mode-btn, .action-btn, .trip-btn {
+  border: 1px solid var(--line);
+  background: #10181b;
+  color: var(--text);
+  border-radius: 10px;
+  padding: 10px 12px;
+  cursor: pointer;
+  transition: transform 0.12s ease, border-color 0.12s ease, background 0.12s ease;
+}
+
+.mode-btn:hover, .action-btn:hover, .trip-btn:hover {
+  border-color: var(--green);
+  transform: translateY(-1px);
+}
+
+.mode-btn.active {
+  background: rgba(51,227,138,0.14);
+  border-color: rgba(51,227,138,0.7);
+}
+
+.mode-btn small {
+  display: block;
+  color: var(--muted);
+  margin-top: 3px;
+  font-size: 11px;
+}
+
+.trip-list {
+  display: grid;
+  gap: 8px;
+  max-height: 240px;
+  overflow: auto;
+  padding-right: 4px;
+}
+
+.trip-btn {
+  text-align: left;
+  background: #0f1719;
+}
+
+.trip-btn.active {
+  border-color: var(--blue);
+  background: rgba(85,168,255,0.12);
+}
+
+.trip-btn .meta {
+  font-size: 11px;
+  color: var(--muted);
+  margin-top: 3px;
+}
+
+.toggle-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0,1fr));
+  gap: 8px;
+}
+
+.toggle {
+  display: grid;
+  gap: 6px;
+  justify-items: center;
+  padding: 9px 6px;
+  border-radius: 10px;
+  background: #0f1719;
+  border: 1px solid var(--line);
+}
+
+.toggle .pill {
+  width: 50px;
+  height: 24px;
+  border-radius: 999px;
+  background: #233137;
+  position: relative;
+}
+
+.toggle .pill::after {
+  content: "";
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #8a9ba3;
+  transition: all 0.18s ease;
+}
+
+.toggle.on .pill {
+  background: rgba(51,227,138,0.22);
+}
+
+.toggle.on .pill::after {
+  left: 29px;
+  background: var(--green);
+}
+
+.toggle span {
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.big-needle {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.gauge {
+  background: #0f1719;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 12px;
+}
+
+.gauge .name {
+  font-size: 11px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+}
+
+.gauge .value {
+  font-family: var(--mono);
+  font-size: 30px;
+  margin-top: 6px;
+}
+
+.mini-leds {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0,1fr));
+  gap: 8px;
+}
+
+.mini-led {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #0f1719;
+  padding: 10px;
+  text-align: center;
+}
+
+.mini-led .dot {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  margin: 0 auto 6px;
+  background: #45515b;
+}
+
+.mini-led.ok .dot { background: var(--green); box-shadow: 0 0 10px rgba(51,227,138,0.75); }
+.mini-led.warn .dot { background: var(--amber); box-shadow: 0 0 10px rgba(255,179,71,0.75); }
+.mini-led.alert .dot { background: var(--red); box-shadow: 0 0 10px rgba(255,91,91,0.8); }
+
+.mini-led .text {
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.right {
+  display: grid;
+  gap: 12px;
+}
+
+.display {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0,1fr));
+  gap: 12px;
+  padding: 12px;
+}
+
+.display-card {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: linear-gradient(180deg, #11181b, #0d1315);
+  padding: 12px;
+  min-height: 110px;
+}
+
+.display-card .label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  color: var(--muted);
+}
+
+.display-card .big {
+  margin-top: 6px;
+  font-family: var(--mono);
+  font-size: 30px;
+}
+
+.display-card .sub {
+  margin-top: 6px;
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.chart-grid {
+  display: grid;
+  grid-template-columns: 1.3fr 0.9fr;
+  gap: 12px;
+  padding: 0 12px 12px;
+}
+
+.chart-box {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: #0f1719;
+  overflow: hidden;
+}
+
+.chart-box canvas { width: 100%; }
+
+.log {
+  height: 240px;
+  overflow: auto;
+  padding: 10px 12px;
+  font-family: var(--mono);
+  font-size: 12px;
+  line-height: 1.45;
+  background: #0c1416;
+}
+
+.log-line { color: #a9c7b7; margin-bottom: 4px; }
+.log-line.ok { color: #7ae7a5; }
+.log-line.warn { color: #ffcc7a; }
+.log-line.alert { color: #ff8c8c; }
+
+.action-btn.primary { background: rgba(51,227,138,0.14); }
+.action-btn.warn { background: rgba(255,179,71,0.14); }
+.action-btn.alert { background: rgba(255,91,91,0.14); }
+
+.footer-note {
+  padding: 0 18px 18px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+@media (max-width: 1180px) {
+  .layout, .chart-grid { grid-template-columns: 1fr; }
+  .kpi-row, .display, .mini-leds { grid-template-columns: repeat(2, minmax(0,1fr)); }
+}
+
+@media (max-width: 760px) {
+  .header { flex-direction: column; align-items: flex-start; }
+  .kpi-row, .display, .mini-leds, .mode-grid, .toggle-grid { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+<body>
+  <div class="board">
+    <div class="header">
+      <div class="brand">
+        <h1>FuelGuard Physical Control Board</h1>
+        <p>Hardware-style fuel theft simulator with live scenarios, indicator lamps, and alert relay behavior</p>
+      </div>
+      <div class="status-strip">
+        <div id="statusLed" class="led"></div>
+        <span id="statusText">BOOTING</span>
+        <span style="color: var(--muted);">|</span>
+        <span id="tripStatus">WAITING FOR DATA</span>
+      </div>
+    </div>
+
+    <div class="kpi-row">
+      <div class="kpi"><div class="label">Fuel Level</div><div class="value" id="kFuel">-- %</div><div class="sub">Tank estimate</div></div>
+      <div class="kpi"><div class="label">Speed</div><div class="value" id="kSpeed">-- km/h</div><div class="sub">Vehicle motion</div></div>
+      <div class="kpi"><div class="label">RPM</div><div class="value" id="kRpm">--</div><div class="sub">Engine load</div></div>
+      <div class="kpi"><div class="label">Threat</div><div class="value" id="kProb">-- %</div><div class="sub">LSTM confidence</div></div>
+    </div>
+
+    <div class="layout">
+      <div class="left">
+        <div class="panel">
+          <div class="panel-h">CONTROL MODULE</div>
+          <div class="control-grid">
+            <div class="module">
+              <div class="module-title"><span>IGNITION / POWER</span><span id="powerState">DEEP SLEEP</span></div>
+              <div class="toggle-grid">
+                <div class="toggle on" id="toggleIgnition"><div class="pill"></div><span>IGNITION</span></div>
+                <div class="toggle" id="toggleEsp32"><div class="pill"></div><span>ESP32</span></div>
+                <div class="toggle" id="toggleGsm"><div class="pill"></div><span>GSM</span></div>
+              </div>
+            </div>
+
+            <div class="module">
+              <div class="module-title"><span>DEMO SCENARIOS</span><span>PRESET BANK</span></div>
+              <div class="mode-grid" id="scenarioGrid">
+                <button class="mode-btn active" data-scenario="drive">Drive Normal<small>Vehicle ON, no alert</small></button>
+                <button class="mode-btn" data-scenario="idle">Vehicle OFF<small>Sleep / wake cycle</small></button>
+                <button class="mode-btn" data-scenario="refuel">Refuel<small>Cap open, fuel rises</small></button>
+                <button class="mode-btn" data-scenario="siphon">Siphoning Theft<small>Cap event, fuel drops</small></button>
+                <button class="mode-btn" data-scenario="puncture">Puncture<small>No cap event, fuel drops</small></button>
+                <button class="mode-btn" data-scenario="quiet">No Activity<small>Deep sleep only</small></button>
+              </div>
+            </div>
+
+            <div class="module">
+              <div class="module-title"><span>VEHICLE SOURCE</span><span id="tripCount">0 TRIPS</span></div>
+              <div class="trip-list" id="tripList"></div>
+            </div>
+
+            <div class="module">
+              <div class="module-title"><span>RELAY CONTROLS</span><span>MANUAL OVERRIDE</span></div>
+              <div class="btn-row" style="grid-template-columns: repeat(3, minmax(0,1fr));">
+                <button class="action-btn primary" id="btnStart" disabled>START</button>
+                <button class="action-btn" id="btnStop" disabled>STOP</button>
+                <button class="action-btn" id="btnReset" disabled>RESET</button>
+              </div>
+              <div class="btn-row" style="grid-template-columns: repeat(2, minmax(0,1fr)); margin-top:10px;">
+                <button class="action-btn warn" id="btnInject" disabled>INJECT THEFT</button>
+                <button class="action-btn alert" id="btnAlert" disabled>FORCE ALERT</button>
+              </div>
+            </div>
+
+            <div class="module">
+              <div class="module-title"><span>CONTROL TOGGLES</span><span>STATE INPUTS</span></div>
+              <div class="toggle-grid">
+                <div class="toggle on" id="toggleCap"><div class="pill"></div><span>CAP</span></div>
+                <div class="toggle" id="toggleVibration"><div class="pill"></div><span>VIBRATION</span></div>
+                <div class="toggle" id="toggleTimer"><div class="pill"></div><span>TIMER</span></div>
+              </div>
+            </div>
+
+            <div class="module">
+              <div class="module-title"><span>POWER RAIL</span><span>ESTIMATE</span></div>
+              <div class="mini-leds">
+                <div class="mini-led ok" id="ledDeep"><div class="dot"></div><div class="text">DEEP SLEEP</div></div>
+                <div class="mini-led warn" id="ledWake"><div class="dot"></div><div class="text">EVENT WAKE</div></div>
+                <div class="mini-led alert" id="ledGsm"><div class="dot"></div><div class="text">GSM TX</div></div>
+                <div class="mini-led ok" id="ledLstm"><div class="dot"></div><div class="text">LSTM</div></div>
+              </div>
+            </div>
+
+            <div class="module">
+              <div class="module-title"><span>GAUGES</span><span>LIVE STATE</span></div>
+              <div class="big-needle">
+                <div class="gauge"><div class="name">Fuel Gauge</div><div class="value" id="gFuel">--</div></div>
+                <div class="gauge"><div class="name">Alert Counter</div><div class="value" id="gAlert">--</div></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="right">
+        <div class="panel">
+          <div class="panel-h">FRONT PANEL DISPLAY</div>
+          <div class="display">
+            <div class="display-card"><div class="label">Mode</div><div class="big" id="dispMode">DRIVE</div><div class="sub" id="dispModeSub">Vehicle ON</div></div>
+            <div class="display-card"><div class="label">Event</div><div class="big" id="dispEvent">READY</div><div class="sub" id="dispEventSub">Awaiting scenario</div></div>
+            <div class="display-card"><div class="label">Decision</div><div class="big" id="dispDecision">IDLE</div><div class="sub" id="dispDecisionSub">No active alarm</div></div>
+            <div class="display-card"><div class="label">Power</div><div class="big" id="dispPower">LOW</div><div class="sub" id="dispPowerSub">Very low consumption</div></div>
+          </div>
+        </div>
+
+        <div class="chart-grid">
+          <div class="chart-box"><div class="panel-h">LIVE TELEMETRY STRIP</div><canvas id="signalsChart" height="190"></canvas></div>
+          <div class="chart-box"><div class="panel-h">THEFT SCORE STRIP</div><canvas id="probChart" height="190"></canvas></div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-h">ALERT / DEVICE LOG</div>
+          <div id="eventLog" class="log"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="footer-note">Preset scenarios can be replayed with the board controls to demonstrate driving, idle, refuel, siphoning, puncture, and no-activity behavior.</div>
+  </div>
+
+<script>
+const POLL_MS = 280;
+const WINDOW_POINTS = 110;
+
+let trips = [];
+let tripRows = [];
+let currentTrip = null;
+let pointer = 0;
+let timer = null;
+let overrides = {};
+let activeScenario = "drive";
+let alertCount = 0;
+
+const statusLed = document.getElementById("statusLed");
+const statusText = document.getElementById("statusText");
+const tripStatus = document.getElementById("tripStatus");
+const eventLog = document.getElementById("eventLog");
+
+const kFuel = document.getElementById("kFuel");
+const kSpeed = document.getElementById("kSpeed");
+const kRpm = document.getElementById("kRpm");
+const kProb = document.getElementById("kProb");
+const gFuel = document.getElementById("gFuel");
+const gAlert = document.getElementById("gAlert");
+
+const powerState = document.getElementById("powerState");
+const dispMode = document.getElementById("dispMode");
+const dispModeSub = document.getElementById("dispModeSub");
+const dispEvent = document.getElementById("dispEvent");
+const dispEventSub = document.getElementById("dispEventSub");
+const dispDecision = document.getElementById("dispDecision");
+const dispDecisionSub = document.getElementById("dispDecisionSub");
+const dispPower = document.getElementById("dispPower");
+const dispPowerSub = document.getElementById("dispPowerSub");
+
+const btnStart = document.getElementById("btnStart");
+const btnStop = document.getElementById("btnStop");
+const btnReset = document.getElementById("btnReset");
+const btnInject = document.getElementById("btnInject");
+const btnAlert = document.getElementById("btnAlert");
+const tripList = document.getElementById("tripList");
+const tripCount = document.getElementById("tripCount");
+
+const toggles = {
+  ignition: document.getElementById("toggleIgnition"),
+  esp32: document.getElementById("toggleEsp32"),
+  gsm: document.getElementById("toggleGsm"),
+  cap: document.getElementById("toggleCap"),
+  vibration: document.getElementById("toggleVibration"),
+  timer: document.getElementById("toggleTimer"),
+};
+
+const leds = {
+  deep: document.getElementById("ledDeep"),
+  wake: document.getElementById("ledWake"),
+  gsm: document.getElementById("ledGsm"),
+  lstm: document.getElementById("ledLstm"),
+};
+
+const scenarioButtons = Array.from(document.querySelectorAll(".mode-btn"));
+
+function logLine(message, kind = "") {
+  const el = document.createElement("div");
+  el.className = `log-line ${kind}`.trim();
+  el.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+  eventLog.appendChild(el);
+  eventLog.scrollTop = eventLog.scrollHeight;
+}
+
+function setStatus(mode, text) {
+  statusLed.className = "led";
+  if (mode === "ok") statusLed.classList.add("ok");
+  if (mode === "warn") statusLed.classList.add("warn");
+  if (mode === "alert") statusLed.classList.add("alert");
+  statusText.textContent = text;
+}
+
+function setToggle(el, on) {
+  el.classList.toggle("on", !!on);
+}
+
+function trim(arr) {
+  if (arr.length > WINDOW_POINTS) arr.splice(0, arr.length - WINDOW_POINTS);
+}
+
+function clearCharts() {
+  [signalsChart, probChart].forEach(chart => {
+    chart.data.labels = [];
+    chart.data.datasets.forEach(ds => ds.data = []);
+    chart.update();
+  });
+}
+
+function getRowAt(i) {
+  const base = tripRows[i];
+  if (!base) return null;
+  return overrides[i] ? overrides[i] : base;
+}
+
+function refreshPlayback() {
+  tripStatus.textContent = `${pointer} / ${tripRows.length}`;
+}
+
+function scenarioLabel(kind) {
+  const labels = {
+    drive: ["DRIVE", "Vehicle ON / engine running"],
+    idle: ["OFF", "Ignition off / standby wake"],
+    refuel: ["REFUEL", "Cap open / fuel rising"],
+    siphon: ["THEFT", "Cap open / fuel drop"],
+    puncture: ["TAMPER", "No cap event / sudden drop"],
+    quiet: ["SLEEP", "No activity / deep sleep"],
+  };
+  return labels[kind] || labels.drive;
+}
+
+function applyScenarioUi(kind, eventText, decisionText, alertFlag, powerText) {
+  const [modeTitle, modeSub] = scenarioLabel(kind);
+  dispMode.textContent = modeTitle;
+  dispModeSub.textContent = modeSub;
+  dispEvent.textContent = eventText;
+  dispEventSub.textContent = eventText.includes("ALERT") ? "Notify over GSM / server" : "System monitoring";
+  dispDecision.textContent = decisionText;
+  dispDecisionSub.textContent = alertFlag ? "Alarm relay active" : "Monitoring only";
+  dispPower.textContent = powerText;
+  dispPowerSub.textContent = powerText.includes("High") ? "GSM transmission active" : powerText.includes("Medium") ? "Event wake" : "Very low consumption";
+}
+
+function setPowerRail(mode) {
+  const deep = mode === "deep";
+  const wake = mode === "wake";
+  const gsm = mode === "gsm";
+  leds.deep.classList.toggle("ok", deep);
+  leds.wake.classList.toggle("warn", wake);
+  leds.gsm.classList.toggle("alert", gsm);
+  leds.lstm.classList.toggle("ok", true);
+  powerState.textContent = gsm ? "GSM TRANSMIT" : wake ? "EVENT WAKE" : "DEEP SLEEP";
+}
+
+function updateTelemetry(row) {
+  if (!row) return;
+  kFuel.textContent = `${row.fuel_level.toFixed(1)} %`;
+  kSpeed.textContent = `${row.speed_kmh.toFixed(1)} km/h`;
+  kRpm.textContent = `${row.rpm.toFixed(0)}`;
+  kProb.textContent = `${(row.theft_prob * 100).toFixed(1)} %`;
+  gFuel.textContent = `${row.fuel_level.toFixed(1)}%`;
+  gAlert.textContent = `${alertCount}`;
+
+  const alert = !!row.alert_fired;
+  const anomaly = row.theft_prob >= 0.5;
+
+  if (alert) {
+    setStatus("alert", "ALERT ACTIVE");
+    setPowerRail("gsm");
+  } else if (anomaly) {
+    setStatus("warn", "ANOMALY");
+    setPowerRail("wake");
+  } else {
+    setStatus("ok", "ONLINE");
+    setPowerRail(activeScenario === "quiet" ? "deep" : activeScenario === "idle" ? "wake" : "deep");
+  }
+
+  const eventText = alert ? "THEFT ALERT" : anomaly ? "ANOMALY" : "MONITORING";
+  const decisionText = alert ? "ALERT" : anomaly ? "FLAGGED" : "CLEAR";
+  const powerText = alert ? "GSM High" : anomaly ? "Event Wake" : activeScenario === "quiet" ? "Deep Sleep" : "Very Low";
+  applyScenarioUi(activeScenario, eventText, decisionText, alert, powerText);
+
+  setToggle(toggles.ignition, activeScenario === "drive");
+  setToggle(toggles.esp32, activeScenario !== "drive");
+  setToggle(toggles.gsm, alert);
+  setToggle(toggles.cap, activeScenario === "refuel" || activeScenario === "siphon");
+  setToggle(toggles.vibration, activeScenario === "siphon" || activeScenario === "puncture");
+  setToggle(toggles.timer, activeScenario === "puncture" || activeScenario === "quiet");
+
+  if (alert) {
+    logLine(`Alert fired at sample ${row.i} with probability ${(row.theft_prob * 100).toFixed(1)}%.`, "alert");
+  }
+}
+
+function appendCharts(row) {
+  const label = row.i;
+  signalsChart.data.labels.push(label);
+  signalsChart.data.datasets[0].data.push(row.fuel_level);
+  signalsChart.data.datasets[1].data.push(row.speed_kmh);
+  signalsChart.data.datasets[2].data.push(row.rpm / 50.0);
+  trim(signalsChart.data.labels);
+  signalsChart.data.datasets.forEach(ds => trim(ds.data));
+  signalsChart.update();
+
+  probChart.data.labels.push(label);
+  probChart.data.datasets[0].data.push(row.theft_prob);
+  probChart.data.datasets[1].data.push(0.5);
+  trim(probChart.data.labels);
+  probChart.data.datasets.forEach(ds => trim(ds.data));
+  probChart.update();
+}
+
+function step() {
+  if (pointer >= tripRows.length) {
+    stop();
+    logLine("Playback complete.", "ok");
+    return;
+  }
+  const row = getRowAt(pointer);
+  appendCharts(row);
+  updateTelemetry(row);
+  pointer += 1;
+  refreshPlayback();
+}
+
+function play() {
+  if (timer || !tripRows.length) return;
+  timer = setInterval(step, POLL_MS);
+  btnStart.disabled = true;
+  btnStop.disabled = false;
+  logLine(`Scenario ${activeScenario.toUpperCase()} started.`, "ok");
+}
+
+function stop() {
+  if (!timer) return;
+  clearInterval(timer);
+  timer = null;
+  btnStart.disabled = false;
+  btnStop.disabled = true;
+  logLine("Playback paused.", "warn");
+}
+
+function resetBoard() {
+  stop();
+  pointer = 0;
+  overrides = {};
+  alertCount = 0;
+  clearCharts();
+  refreshPlayback();
+  const row = getRowAt(0);
+  if (row) updateTelemetry(row);
+  logLine("Board reset.", "warn");
+}
+
+function setScenario(kind) {
+  activeScenario = kind;
+  scenarioButtons.forEach(btn => btn.classList.toggle("active", btn.dataset.scenario === kind));
+  resetBoard();
+  const names = {
+    drive: "Normal driving replay",
+    idle: "Ignition off idle cycle",
+    refuel: "Refueling demo",
+    siphon: "Cap-open theft demo",
+    puncture: "No-cap tamper demo",
+    quiet: "Deep sleep demo",
+  };
+  logLine(`Scenario selected: ${names[kind]}.`, "ok");
+}
+
+async function loadTrips() {
+  const res = await fetch("/api/trips");
+  const data = await res.json();
+  trips = Array.isArray(data) ? data : [];
+  tripList.innerHTML = "";
+  tripCount.textContent = `${trips.length} TRIPS`;
+
+  trips.forEach((trip, index) => {
+    const button = document.createElement("button");
+    button.className = `trip-btn ${index === 0 ? "active" : ""}`;
+    button.innerHTML = `<strong>${trip.veh_trip}</strong><div class="meta">${trip.status} · ${trip.n_samples} samples · max p=${trip.max_prob}</div>`;
+    button.addEventListener("click", async () => {
+      Array.from(tripList.querySelectorAll(".trip-btn")).forEach(el => el.classList.remove("active"));
+      button.classList.add("active");
+      await loadTrip(trip.veh_trip);
+    });
+    tripList.appendChild(button);
+  });
+
+  if (trips.length) {
+    await loadTrip(trips[0].veh_trip);
+  } else {
+    logLine("No trips available from backend.", "warn");
+    btnStart.disabled = true;
+    btnReset.disabled = true;
+    btnInject.disabled = true;
+    btnAlert.disabled = true;
+  }
+}
+
+async function loadTrip(vehTrip) {
+  const res = await fetch(`/api/trip/${encodeURIComponent(vehTrip)}`);
+  const data = await res.json();
+  tripRows = Array.isArray(data.rows) ? data.rows : [];
+  currentTrip = vehTrip;
+  pointer = 0;
+  overrides = {};
+  refreshPlayback();
+  clearCharts();
+  btnStart.disabled = !tripRows.length;
+  btnReset.disabled = !tripRows.length;
+  btnInject.disabled = !tripRows.length;
+  btnAlert.disabled = !tripRows.length;
+  if (tripRows.length) {
+    updateTelemetry(tripRows[0]);
+    logLine(`Loaded trip ${vehTrip} with ${tripRows.length} samples.`, "ok");
+  }
+}
+
+async function injectTheft() {
+  if (!currentTrip || !tripRows.length) return;
+  const position = Math.max(25, Math.min(pointer + 8, tripRows.length - 60));
+  const duration = 35;
+  const res = await fetch("/api/simulate-theft", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ veh_trip: currentTrip, position, duration })
+  });
+  const data = await res.json();
+  if (!data.injected) {
+    logLine("Theft injection failed.", "alert");
+    return;
+  }
+  data.injected.forEach(row => { overrides[row.i] = row; });
+  setScenario("siphon");
+  logLine(`Injected parked theft at sample ${position}.`, "alert");
+}
+
+function forceAlert() {
+  alertCount += 1;
+  const row = getRowAt(pointer) || tripRows[0];
+  if (row) {
+    row.alert_fired = true;
+    row.theft_prob = Math.max(row.theft_prob || 0, 0.92);
+    updateTelemetry(row);
+  }
+  setStatus("alert", "MANUAL ALERT");
+  setPowerRail("gsm");
+  logLine("Manual alert relay fired from front panel.", "alert");
+}
+
+function attachHandlers() {
+  scenarioButtons.forEach(btn => {
+    btn.addEventListener("click", () => setScenario(btn.dataset.scenario));
+  });
+  btnStart.addEventListener("click", play);
+  btnStop.addEventListener("click", stop);
+  btnReset.addEventListener("click", resetBoard);
+  btnInject.addEventListener("click", injectTheft);
+  btnAlert.addEventListener("click", forceAlert);
+}
+
+const signalsChart = new Chart(document.getElementById("signalsChart"), {
+  type: "line",
+  data: {
+    labels: [],
+    datasets: [
+      { label: "Fuel %", data: [], borderColor: "#33e38a", pointRadius: 0, tension: 0.18, borderWidth: 2 },
+      { label: "Speed", data: [], borderColor: "#55a8ff", pointRadius: 0, tension: 0.18, borderWidth: 1.8 },
+      { label: "RPM/50", data: [], borderColor: "#ffb347", pointRadius: 0, tension: 0.18, borderWidth: 1.8 }
+    ]
+  },
+  options: {
+    animation: false,
+    plugins: { legend: { labels: { color: "#cfe4d9" } } },
+    scales: {
+      x: { ticks: { color: "#86a396", maxTicksLimit: 8 }, grid: { color: "rgba(49,65,71,0.35)" } },
+      y: { ticks: { color: "#86a396" }, grid: { color: "rgba(49,65,71,0.35)" } }
+    }
+  }
+});
+
+const probChart = new Chart(document.getElementById("probChart"), {
+  type: "line",
+  data: {
+    labels: [],
+    datasets: [
+      { label: "Threat", data: [], borderColor: "#ff5b5b", pointRadius: 0, tension: 0.18, borderWidth: 2, fill: true, backgroundColor: "rgba(255,91,91,0.13)" },
+      { label: "Threshold", data: [], borderColor: "#ffb347", borderDash: [5,4], pointRadius: 0, borderWidth: 1.2 }
+    ]
+  },
+  options: {
+    animation: false,
+    plugins: { legend: { labels: { color: "#cfe4d9" } } },
+    scales: {
+      x: { ticks: { color: "#86a396", maxTicksLimit: 8 }, grid: { color: "rgba(49,65,71,0.35)" } },
+      y: { min: 0, max: 1, ticks: { color: "#86a396" }, grid: { color: "rgba(49,65,71,0.35)" } }
+    }
+  }
+});
+
+async function boot() {
+  setStatus("warn", "INITIALIZING");
+  logLine("Boot sequence started.", "warn");
+  while (true) {
+    try {
+      const res = await fetch("/api/status");
+      const data = await res.json();
+      if (data.ready) break;
+    } catch {
+      // retry
+    }
+    await new Promise(resolve => setTimeout(resolve, 700));
+  }
+  setStatus("ok", "ONLINE");
+  logLine("Backend ready. Control board online.", "ok");
+  attachHandlers();
+  await loadTrips();
+  setScenario("drive");
+}
+
+boot();
+</script>
+</body>
+</html>
